@@ -10,11 +10,14 @@ file back and refuses to exit cleanly unless it matches, so a bad
 write can never pass silently.
 
 Output goes to ``$MAKEFUN_OUTPUT_DIR`` when that variable is set,
-otherwise to ``/output``. Only the standard library is used: no
+otherwise to ``/output``. Pass ``--output-dir <dir>`` to choose it on
+the command line instead, or ``--verify-only`` to check the pitch
+without writing anything. Only the standard library is used: no
 network, no clock, no randomness, so every run publishes the same
 bytes.
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -36,8 +39,17 @@ def check_pitch(text: str) -> None:
         raise SystemExit("pitch must fit on one line")
 
 
-def publish(text: str) -> Path:
-    directory = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output-dir", default=None,
+                        help="directory to write entry.txt into")
+    parser.add_argument("--verify-only", action="store_true",
+                        help="validate the pitch without writing it")
+    return parser.parse_args(argv)
+
+
+def publish(text: str, output_dir=None) -> Path:
+    directory = Path(output_dir or os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / "entry.txt"
     target.write_text(text, encoding="utf-8")
@@ -46,10 +58,14 @@ def publish(text: str) -> Path:
     return target
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    args = parse_args(argv)
     pitch = read_pitch()
     check_pitch(pitch)
-    target = publish(pitch)
+    if args.verify_only:
+        print(f"Valid: {len(pitch)}-character pitch")
+        return 0
+    target = publish(pitch, args.output_dir)
     print(f"Published {len(pitch)}-character pitch to {target}")
     return 0
 
